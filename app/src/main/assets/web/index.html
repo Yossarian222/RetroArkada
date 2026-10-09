@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Retro Arkáda – pridať hry</title>
+<style>
+  :root {
+    --bg: #0b0d17; --panel: #151a2e; --line: #262d4a; --text: #eef0ff; --muted: #8e94b8;
+    --accent: #ff4f9a; --accent2: #7c5cff; --ok: #3ddc97; --err: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(1200px 600px at 10% -10%, #2a1f5c 0%, transparent 60%),
+                radial-gradient(900px 500px at 110% 10%, #4a1238 0%, transparent 55%), var(--bg);
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { margin: 0; font-size: 34px; letter-spacing: 1px;
+       background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .sub { color: var(--muted); margin: 4px 0 24px; }
+  .card { background: color-mix(in srgb, var(--panel) 88%, transparent); border: 1px solid var(--line); border-radius: 18px; padding: 20px; margin-bottom: 20px; }
+  label { color: var(--muted); font-size: 14px; display: block; margin-bottom: 6px; }
+  select { width: 100%; padding: 12px; border-radius: 12px; background: #0f1324; color: var(--text); border: 1px solid var(--line); font-size: 16px; }
+  #drop { margin-top: 16px; border: 2px dashed #3a4370; border-radius: 16px; padding: 40px 16px; text-align: center; cursor: pointer; transition: .2s; }
+  #drop.hover { border-color: var(--accent); background: #ff4f9a14; }
+  #drop b { display: block; font-size: 20px; margin-bottom: 4px; }
+  #drop span { color: var(--muted); font-size: 14px; }
+  .item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .item:last-child { border-bottom: 0; }
+  .grow { flex: 1; min-width: 0; }
+  .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta { color: var(--muted); font-size: 13px; }
+  .bar { height: 6px; background: #0f1324; border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .2s; }
+  .ok { color: var(--ok); } .err { color: var(--err); }
+  button { background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; cursor: pointer; font-size: 14px; }
+  button:hover { color: var(--err); border-color: var(--err); }
+  h2 { font-size: 18px; margin: 0 0 8px; display: flex; justify-content: space-between; align-items: baseline; }
+  h2 small { color: var(--muted); font-weight: normal; font-size: 14px; }
+  .hint { color: var(--muted); font-size: 14px; margin: 0; }
+  .hint code { background: #0f1324; padding: 1px 6px; border-radius: 6px; }
+  input[type=search] { width: 100%; padding: 10px 12px; border-radius: 12px; background: #0f1324; color: var(--text); border: 1px solid var(--line); font-size: 15px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>RETRO ARKÁDA</h1>
+  <p class="sub">Pridaj hry do televízora. Po nahratí sa hneď objavia v knižnici.</p>
+
+  <section class="card">
+    <label for="system">Konzola</label>
+    <select id="system"><option value="auto">Rozpoznať automaticky (podľa prípony)</option></select>
+    <div id="drop">
+      <b>Sem pretiahni hry</b>
+      <span>alebo klikni a vyber súbory · .nes .sfc .smc .gb .gbc .gba .md .sms .gg .pce .a26 .n64 .z64 .chd .pbp .cue+.bin .zip</span>
+      <input id="file" type="file" multiple hidden>
+    </div>
+  </section>
+
+  <section class="card" id="queueCard" hidden>
+    <h2>Nahrávanie</h2>
+    <div id="queue"></div>
+  </section>
+
+  <section class="card">
+    <h2>Knižnica <small id="count"></small></h2>
+    <input id="filter" type="search" placeholder="Hľadať…">
+    <div id="games"></div>
+  </section>
+
+  <section class="card">
+    <h2>Tipy</h2>
+    <p class="hint">• Arkádové hry (FBNeo) nahraj ako <code>.zip</code> ROM sety a vyber konzolu <b>Arcade</b>.<br>
+      • PlayStation: najlepšie <code>.chd</code> alebo <code>.pbp</code>. Pri <code>.cue</code> nahraj aj všetky <code>.bin</code> súbory.<br>
+      • BIOS súbory (napr. <code>scph5501.bin</code> pre PS1, <code>disksys.rom</code> pre Famicom Disk) nahraj s voľbou <b>BIOS</b>.<br>
+      • Obaly sa stiahnu automaticky, ak sa súbor volá ako v No-Intro/Redump, napr. <code>Super Mario World (USA).sfc</code>.</p>
+  </section>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const fmt = b => b > 1e9 ? (b / 1e9).toFixed(1) + ' GB' : b > 1e6 ? (b / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1e3)) + ' kB';
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let games = [];
+
+async function load() {
+  const r = await fetch('/api/info'); const info = await r.json();
+  const sel = $('#system');
+  if (sel.options.length === 1) {
+    info.systems.forEach(s => sel.add(new Option(s.name, s.id)));
+    sel.add(new Option('BIOS (systémové súbory)', 'bios'));
+  }
+  games = info.games; render();
+}
+
+function render() {
+  const q = $('#filter').value.toLowerCase();
+  const list = games.filter(g => !q || g.title.toLowerCase().includes(q) || g.system.toLowerCase().includes(q));
+  $('#count').textContent = games.length + (games.length === 1 ? ' hra' : games.length < 5 ? ' hry' : ' hier');
+  $('#games').innerHTML = list.length ? list.map((g, i) => `
+    <div class="item"><div class="grow"><div class="name">${esc(g.title)}</div>
+    <div class="meta">${esc(g.system)} · ${esc(g.file)} · ${fmt(g.size)}</div></div>
+    ${g.deletable ? `<button data-i="${games.indexOf(g)}">Zmazať</button>` : '<span class="meta">USB</span>'}</div>`).join('')
+    : '<p class="hint">Zatiaľ tu nič nie je.</p>';
+}
+
+$('#games').addEventListener('click', async e => {
+  const i = e.target.dataset.i; if (i === undefined) return;
+  const g = games[i];
+  if (!confirm('Zmazať „' + g.title + '“?')) return;
+  await fetch('/api/delete?id=' + encodeURIComponent(g.id), { method: 'POST' });
+  setTimeout(load, 400);
+});
+$('#filter').addEventListener('input', render);
+
+const drop = $('#drop'), input = $('#file');
+drop.onclick = () => input.click();
+input.onchange = () => { enqueue([...input.files]); input.value = ''; };
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('hover'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('hover'); }));
+drop.addEventListener('drop', e => enqueue([...e.dataTransfer.files]));
+
+const queue = []; let busy = false;
+function enqueue(files) {
+  $('#queueCard').hidden = false;
+  // .bin/.img súbory nahraj pred .cue, aby .cue po príchode našiel svoje stopy
+  files.sort((a, b) => (/\.(cue|m3u)$/i.test(a.name) ? 1 : 0) - (/\.(cue|m3u)$/i.test(b.name) ? 1 : 0));
+  const hasCue = files.some(f => /\.cue$/i.test(f.name));
+  for (const f of files) {
+    let system = $('#system').value;
+    // .bin spolu s .cue patrí k PlayStation, nie k Mega Drive
+    if (system === 'auto' && hasCue && /\.(bin|img)$/i.test(f.name)) system = 'psx';
+    const row = document.createElement('div'); row.className = 'item';
+    row.innerHTML = `<div class="grow"><div class="name">${esc(f.name)}</div><div class="meta">${fmt(f.size)} · čaká</div><div class="bar"><i></i></div></div>`;
+    $('#queue').prepend(row);
+    queue.push({ f, row, system });
+  }
+  next();
+}
+
+function next() {
+  if (busy || !queue.length) return;
+  busy = true;
+  const { f, row, system } = queue.shift();
+  const meta = row.querySelector('.meta'), bar = row.querySelector('.bar i');
+  const xhr = new XMLHttpRequest();
+  xhr.open('PUT', '/api/upload?name=' + encodeURIComponent(f.name) + '&system=' + encodeURIComponent(system));
+  xhr.upload.onprogress = e => { if (e.lengthComputable) { const p = e.loaded / e.total * 100; bar.style.width = p + '%'; meta.textContent = fmt(f.size) + ' · ' + Math.round(p) + ' %'; } };
+  xhr.onload = () => {
+    let res = { ok: false, message: 'Chyba servera' };
+    try { res = JSON.parse(xhr.responseText); } catch (_) {}
+    meta.className = 'meta ' + (res.ok ? 'ok' : 'err');
+    meta.textContent = (res.ok ? '✓ ' : '✗ ') + res.message;
+    bar.style.width = '100%';
+    busy = false; load(); next();
+  };
+  xhr.onerror = () => { meta.className = 'meta err'; meta.textContent = '✗ Spojenie sa prerušilo'; busy = false; next(); };
+  xhr.send(f);
+}
+
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+package com.yossarian222.retroarkada.data
+
+import android.content.Context
+import com.swordfish.libretrodroid.ShaderConfig
+import org.json.JSONArray
+
+enum class VideoFilter(val label: String, val shader: ShaderConfig) {
+    SHARP("Ostrý (pixely)", ShaderConfig.Sharp),
+    CRT("CRT televízor", ShaderConfig.CRT),
+    LCD("LCD mriežka", ShaderConfig.LCD),
+    SMOOTH("Vyhladený", ShaderConfig.CUT2()),
+    RAW("Pôvodný", ShaderConfig.Default),
+    ;
+
+    fun next(): VideoFilter = entries[(ordinal + 1) % entries.size]
+}
+
+class Prefs(context: Context) {
+    private val sp = context.getSharedPreferences("arkada", Context.MODE_PRIVATE)
+
+    var videoFilter: VideoFilter
+        get() = runCatching { VideoFilter.valueOf(sp.getString("filter", null)!!) }.getOrDefault(VideoFilter.SHARP)
+        set(value) = sp.edit().putString("filter", value.name).apply()
+
+    var favorites: Set<String>
+        get() = sp.getStringSet("favorites", emptySet())!!.toSet()
+        set(value) = sp.edit().putStringSet("favorites", value).apply()
+
+    var recent: List<String>
+        get() {
+            val arr = runCatching { JSONArray(sp.getString("recent", "[]")) }.getOrElse { JSONArray() }
+            return List(arr.length()) { arr.getString(it) }
+        }
+        set(value) = sp.edit().putString("recent", JSONArray(value).toString()).apply()
+}

@@ -1,0 +1,7 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+# Jadrá sa sťahujú v CI skriptom scripts/download-cores.sh
+app/src/main/jniLibs/
