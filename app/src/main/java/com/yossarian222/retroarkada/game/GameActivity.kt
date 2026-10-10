@@ -23,6 +23,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import com.swordfish.libretrodroid.GLRetroView
 import com.swordfish.libretrodroid.GLRetroViewData
+import com.swordfish.libretrodroid.Variable
 import com.swordfish.libretrodroid.GLRetroView.GLRetroEvents
 import com.yossarian222.retroarkada.data.Game
 import com.yossarian222.retroarkada.data.Library
@@ -106,7 +107,7 @@ class GameActivity : ComponentActivity() {
                 gameFilePath = rom.absolutePath
                 systemDirectory = Library.biosDir.absolutePath
                 savesDirectory = Library.savesDir(game.system).absolutePath
-                variables = game.system.variables.toTypedArray()
+                variables = coreVariables().toTypedArray()
                 saveRAMState = sram.takeIf { it.exists() }?.readBytes()
                 shader = Library.prefs.videoFilter.shader
                 rumbleEventsEnabled = true
@@ -152,6 +153,14 @@ class GameActivity : ComponentActivity() {
                 "Menu: View + Menu na ovládači, tlačidlo Xbox alebo Späť"
             }
         Toast.makeText(this, hint, Toast.LENGTH_LONG).show()
+    }
+
+    private fun coreVariables(): List<Variable> {
+        val vars = game.system.variables.toMutableList()
+        if (game.system.id == "psx" && Library.prefs.ps1Compat) {
+            vars += Variable("pcsx_rearmed_drc", "disabled")
+        }
+        return vars
     }
 
     override fun onStart() {

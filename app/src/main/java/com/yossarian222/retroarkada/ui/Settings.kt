@@ -65,6 +65,15 @@ fun SettingsScreen(onAdd: () -> Unit) {
                     filter = filter.next()
                     Library.prefs.videoFilter = filter
                 }
+                var ps1Compat by remember { mutableStateOf(Library.prefs.ps1Compat) }
+                FocusButton(
+                    "PS1: kompatibilný režim",
+                    Modifier.width(400.dp),
+                    subtitle = if (ps1Compat) "Zapnutý – pomalší, menej zamŕzania" else "Vypnutý – zapni, ak PS1 hra zamŕza",
+                ) {
+                    ps1Compat = !ps1Compat
+                    Library.prefs.ps1Compat = ps1Compat
+                }
                 var lowLatency by remember { mutableStateOf(Library.prefs.lowLatencyAudio) }
                 FocusButton(
                     "Zvuk",

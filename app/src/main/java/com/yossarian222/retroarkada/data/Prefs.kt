@@ -27,6 +27,11 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("low_latency_audio", false)
         set(value) = sp.edit().putBoolean("low_latency_audio", value).apply()
 
+    /** PS1 bez dynarecu – pomalšie, ale niektoré hry potom nezamŕzajú (videá, scény). */
+    var ps1Compat: Boolean
+        get() = sp.getBoolean("ps1_compat", false)
+        set(value) = sp.edit().putBoolean("ps1_compat", value).apply()
+
     var favorites: Set<String>
         get() = sp.getStringSet("favorites", emptySet())!!.toSet()
         set(value) = sp.edit().putStringSet("favorites", value).apply()
