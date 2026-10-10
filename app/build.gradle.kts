@@ -16,7 +16,7 @@ kotlin {
 
 configure<ApplicationExtension> {
     namespace = "com.yossarian222.retroarkada"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.yossarian222.retroarkada"
