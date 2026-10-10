@@ -22,6 +22,8 @@
   .sub { color: var(--muted); margin: 4px 0 24px; }
   .card { background: color-mix(in srgb, var(--panel) 88%, transparent); border: 1px solid var(--line); border-radius: 18px; padding: 20px; margin-bottom: 20px; }
   label { color: var(--muted); font-size: 14px; display: block; margin-bottom: 6px; }
+  label.usb { margin: 14px 0 0; color: var(--text); font-size: 15px; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  label.usb input { width: 18px; height: 18px; accent-color: var(--accent); }
   select { width: 100%; padding: 12px; border-radius: 12px; background: #0f1324; color: var(--text); border: 1px solid var(--line); font-size: 16px; }
   #drop { margin-top: 16px; border: 2px dashed #3a4370; border-radius: 16px; padding: 40px 16px; text-align: center; cursor: pointer; transition: .2s; }
   #drop.hover { border-color: var(--accent); background: #ff4f9a14; }
@@ -52,6 +54,7 @@
   <section class="card">
     <label for="system">Konzola</label>
     <select id="system"><option value="auto">Rozpoznať automaticky (podľa prípony)</option></select>
+    <label id="usbRow" class="usb" hidden><input type="checkbox" id="usb" checked> Uložiť na USB kľúč v TV (šetrí miesto v TV)</label>
     <div id="drop">
       <b>Sem pretiahni hry</b>
       <span>alebo klikni a vyber súbory · .nes .sfc .smc .gb .gbc .gba .md .sms .gg .pce .a26 .n64 .z64 .chd .pbp .cue+.bin .zip</span>
@@ -91,6 +94,7 @@ async function load() {
     info.systems.forEach(s => sel.add(new Option(s.name, s.id)));
     sel.add(new Option('BIOS (systémové súbory)', 'bios'));
   }
+  $('#usbRow').hidden = !info.usb;
   games = info.games; render();
 }
 
@@ -145,7 +149,8 @@ function next() {
   const { f, row, system } = queue.shift();
   const meta = row.querySelector('.meta'), bar = row.querySelector('.bar i');
   const xhr = new XMLHttpRequest();
-  xhr.open('PUT', '/api/upload?name=' + encodeURIComponent(f.name) + '&system=' + encodeURIComponent(system));
+  const dest = (!$('#usbRow').hidden && $('#usb').checked && system !== 'bios') ? '&dest=usb' : '';
+  xhr.open('PUT', '/api/upload?name=' + encodeURIComponent(f.name) + '&system=' + encodeURIComponent(system) + dest);
   xhr.upload.onprogress = e => { if (e.lengthComputable) { const p = e.loaded / e.total * 100; bar.style.width = p + '%'; meta.textContent = fmt(f.size) + ' · ' + Math.round(p) + ' %'; } };
   xhr.onload = () => {
     let res = { ok: false, message: 'Chyba servera' };

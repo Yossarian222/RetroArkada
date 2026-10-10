@@ -35,7 +35,11 @@ class UploadServer private constructor(private val context: Context, port: Int) 
             }
             session.uri == "/api/info" -> json(Response.Status.OK, info())
             session.uri == "/api/upload" && (session.method == Method.PUT || session.method == Method.POST) ->
-                upload(session, params["name"].orEmpty(), params["system"] ?: "auto")
+                upload(session, params["name"].orEmpty(), params["system"] ?: "auto", params["dest"] == "usb")
+            session.uri == "/api/has" -> {
+                val exists = Library.hasFile(params["name"].orEmpty(), params["size"]?.toLongOrNull() ?: -1, params["dest"] == "usb")
+                json(Response.Status.OK, JSONObject().put("exists", exists))
+            }
             session.uri == "/api/delete" && session.method == Method.POST -> {
                 val game = Library.find(params["id"].orEmpty())
                 val ok = game != null && Library.delete(game)
@@ -45,11 +49,19 @@ class UploadServer private constructor(private val context: Context, port: Int) 
         }
     }
 
-    private fun upload(session: IHTTPSession, name: String, system: String): Response {
+    private fun upload(session: IHTTPSession, name: String, system: String, toUsb: Boolean): Response {
         if (name.isBlank()) return json(Response.Status.BAD_REQUEST, JSONObject().put("ok", false).put("message", "Chýba názov"))
         val length = session.headers["content-length"]?.toLongOrNull()
             ?: return json(Response.Status.BAD_REQUEST, JSONObject().put("ok", false).put("message", "Chýba dĺžka"))
-        val incoming = File(Library.romsDir, ".incoming").apply { mkdirs() }
+        // Pri nahrávaní na USB ukladáme dočasný súbor rovno na USB (šetrí miesto na systémovej karte)
+        val targetBase =
+            if (toUsb) {
+                Library.usbRomsDir()
+                    ?: return json(Response.Status.OK, JSONObject().put("ok", false).put("message", "USB kľúč nie je pripojený alebo sa naň nedá zapisovať"))
+            } else {
+                Library.romsDir
+            }
+        val incoming = File(targetBase, ".incoming").apply { mkdirs() }
         val temp = File.createTempFile("upload", ".part", incoming)
         try {
             val input = session.inputStream
@@ -64,7 +76,7 @@ class UploadServer private constructor(private val context: Context, port: Int) 
                 }
                 if (remaining > 0) error("Prenos sa prerušil")
             }
-            val result = Library.import(temp, name, system)
+            val result = Library.import(temp, name, system, toUsb)
             return json(Response.Status.OK, JSONObject().put("ok", result.ok).put("message", result.message))
         } finally {
             temp.delete()
@@ -86,7 +98,7 @@ class UploadServer private constructor(private val context: Context, port: Int) 
                     .put("deletable", it.managed),
             )
         }
-        return JSONObject().put("systems", systems).put("games", games)
+        return JSONObject().put("systems", systems).put("games", games).put("usb", Library.usbRomsDir() != null)
     }
 
     private fun json(status: Response.Status, body: JSONObject): Response =

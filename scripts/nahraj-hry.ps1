@@ -1,12 +1,15 @@
 ﻿<#
-  Retro Arkáda – nahranie hier z PC na USB kľúč zapojený v Raspberry Pi (Android TV) cez adb.
+  Retro Arkáda – nahranie hier z PC na USB kľúč zapojený v Raspberry Pi (Android TV).
+
+  Hry idú cez adb priamo do aplikácie Retro Arkáda a tá ich zapíše na USB kľúč
+  (na RPi nemá adb sám prístup na USB). Na TV musí byť Retro Arkáda spustená.
 
   Použitie (PowerShell):
-    .\nahraj-hry.ps1                         # otvorí okno na výber priečinka s hrami
-    .\nahraj-hry.ps1 -Zdroj "E:\Roms"        # nahrá celý priečinok Roms (aj s podpriečinkami konzol)
-    .\nahraj-hry.ps1 -Zdroj "E:\Snes" -Konzola snes   # nahrá hry do Roms/snes
+    .\nahraj-hry.ps1                                  # otvorí okno na výber priečinka s hrami
+    .\nahraj-hry.ps1 -Zdroj "E:\Roms"                 # celý priečinok Roms (podpriečinky = konzoly)
+    .\nahraj-hry.ps1 -Zdroj "E:\Snes" -Konzola snes   # všetky hry z priečinka ako SNES
 
-  Nahrávajú sa len nové a zmenené súbory, takže skript môžeš spúšťať opakovane.
+  Hry, ktoré už na USB sú, sa preskočia – skript môžeš spúšťať opakovane.
 #>
 param(
     [string]$Zdroj = "",
@@ -29,40 +32,55 @@ if (-not $Zdroj) {
     if ($dialog.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) { exit 0 }
     $Zdroj = $dialog.SelectedPath
 }
-if (-not (Test-Path $Zdroj)) { Chyba "Priečinok $Zdroj neexistuje." }
+if (-not (Test-Path -LiteralPath $Zdroj)) { Chyba "Priečinok $Zdroj neexistuje." }
+$Zdroj = (Resolve-Path -LiteralPath $Zdroj).Path.TrimEnd('\')
 
-# USB kľúče sú v /storage pod názvom ako 1A2B-3C4D (emulated = interná pamäť)
-$volumes = @(adb shell ls /storage 2>$null | ForEach-Object { $_.Trim() } |
-    Where-Object { $_ -and $_ -notin @("emulated", "self") })
-
-if ($volumes.Count -eq 0) {
-    Chyba "Nenašiel som USB kľúč. Je zapojený v RPi? (adb shell ls /storage)"
-} elseif ($volumes.Count -eq 1) {
-    $usb = $volumes[0]
-} else {
-    Write-Host "Našiel som viac úložísk:"
-    for ($i = 0; $i -lt $volumes.Count; $i++) { Write-Host "  [$($i + 1)] /storage/$($volumes[$i])" }
-    $volba = Read-Host "Ktoré použiť (číslo)"
-    $usb = $volumes[[int]$volba - 1]
+# Spoj sa s webovým serverom Retro Arkády cez adb (funguje cez kábel aj sieť)
+$lokalnyPort = 18080
+$api = $null
+foreach ($port in 8080, 8088, 8181, 9090) {
+    adb forward "tcp:$lokalnyPort" "tcp:$port" | Out-Null
+    try {
+        $info = Invoke-RestMethod -Uri "http://127.0.0.1:$lokalnyPort/api/info" -TimeoutSec 5
+        $api = "http://127.0.0.1:$lokalnyPort"
+        break
+    } catch { }
+}
+if (-not $api) { Chyba "Retro Arkáda neodpovedá. Spusti ju na TV a skús znova." }
+if (-not $info.usb) {
+    Chyba "Appka nevidí USB kľúč. Je zapojený? Má appka povolený prístup (Nastavenia → Prístup k USB a úložisku)?"
 }
 
-$ciel = "/storage/$usb/Roms"
-if ($Konzola) { $ciel = "$ciel/$Konzola" }
+$maCurl = [bool](Get-Command curl.exe -ErrorAction SilentlyContinue)
+$subory = @(Get-ChildItem -LiteralPath $Zdroj -File -Recurse | Where-Object { -not $_.Name.StartsWith(".") })
+Write-Host "Nahrávam $($subory.Count) súborov z $Zdroj na USB kľúč v TV" -ForegroundColor Cyan
 
-adb shell "mkdir -p '$ciel' && touch '$ciel/.zapis' && rm '$ciel/.zapis'" 2>$null
-if ($LASTEXITCODE -ne 0) {
-    Chyba "Na USB kľúč sa nedá zapisovať cez adb. Skopíruj hry na kľúč priamo v PC."
-}
-
-Write-Host "Nahrávam $Zdroj  →  $ciel" -ForegroundColor Cyan
-$polozky = Get-ChildItem -LiteralPath $Zdroj
-$i = 0
-foreach ($p in $polozky) {
+$nove = 0; $preskocene = 0; $chyby = 0; $i = 0
+foreach ($f in $subory) {
     $i++
-    Write-Host "[$i/$($polozky.Count)] $($p.Name)"
-    adb push --sync "$($p.FullName)" "$ciel/" | Out-Null
-    if ($LASTEXITCODE -ne 0) { Write-Host "   ✗ nepodarilo sa nahrať" -ForegroundColor Yellow }
+    # Konzola: parameter, alebo názov priečinka (napr. Roms\snes\hra.sfc -> snes), inak podľa prípony
+    $konzola = if ($Konzola) { $Konzola } elseif ($f.DirectoryName -ne $Zdroj) { $f.Directory.Name } else { "auto" }
+    $q = "name=$([uri]::EscapeDataString($f.Name))&system=$([uri]::EscapeDataString($konzola))&dest=usb"
+
+    $ma = Invoke-RestMethod -Uri "$api/api/has?$q&size=$($f.Length)" -TimeoutSec 15
+    if ($ma.exists) { $preskocene++; continue }
+
+    $mb = [math]::Round($f.Length / 1MB, 1)
+    Write-Host "[$i/$($subory.Count)] $($f.Name) ($mb MB)"
+    try {
+        if ($maCurl) {
+            $odpoved = curl.exe -s -S --fail-with-body -T "$($f.FullName)" "$api/api/upload?$q" | ConvertFrom-Json
+        } else {
+            $odpoved = Invoke-RestMethod -Method Put -InFile $f.FullName -Uri "$api/api/upload?$q"
+        }
+        if ($odpoved.ok) { Write-Host "   ✓ $($odpoved.message)" -ForegroundColor Green; $nove++ }
+        else { Write-Host "   ✗ $($odpoved.message)" -ForegroundColor Yellow; $chyby++ }
+    } catch {
+        Write-Host "   ✗ $($_.Exception.Message)" -ForegroundColor Yellow; $chyby++
+    }
 }
+adb forward --remove "tcp:$lokalnyPort" | Out-Null
 
 Write-Host ""
-Write-Host "✓ Hotovo. V Retro Arkáde daj Nastavenia → Obnoviť knižnicu (alebo appku zavri a otvor)." -ForegroundColor Green
+Write-Host "✓ Hotovo: nahraných $nove, už bolo na USB $preskocene, chýb $chyby." -ForegroundColor Green
+Write-Host "  Hry sa v Retro Arkáde objavia hneď (knižnica sa obnoví sama)."

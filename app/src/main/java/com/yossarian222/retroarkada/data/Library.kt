@@ -249,40 +249,75 @@ object Library {
      * Zaradí nahraný súbor do knižnice. [systemHint] je "auto", "bios" alebo id konzoly.
      * Zip s konzolovou hrou sa rozbalí, inak sa berie ako arkádový ROM set (FBNeo).
      */
-    fun import(temp: File, originalName: String, systemHint: String): ImportResult {
-        val name = File(originalName).name.replace(Regex("[\\\\/:*?\"<>|]"), "_").ifBlank { "hra" }
+    fun import(temp: File, originalName: String, systemHint: String, toUsb: Boolean = false): ImportResult {
+        val name = safeName(originalName)
         val ext = name.substringAfterLast('.', "").lowercase()
         try {
-            if (systemHint == "bios") {
+            if (systemHint.equals("bios", true)) {
                 moveFile(temp, File(biosDir, name))
                 return ImportResult(true, "BIOS $name uložený", "bios")
             }
-            val hinted = Systems.byId(systemHint)
-            if (ext == "zip" && hinted?.id != "arcade") {
-                val extracted = tryExtractConsoleZip(temp, hinted)
-                if (extracted != null) {
-                    temp.delete()
-                    refresh()
-                    return extracted
+            val base =
+                if (toUsb) {
+                    usbRomsDir() ?: return ImportResult(false, "USB kľúč nie je pripojený alebo sa naň nedá zapisovať")
+                } else {
+                    romsDir
                 }
-                if (hinted != null) return ImportResult(false, "V zipe som nenašiel hru pre ${hinted.name}")
+            // Konzola podľa voľby, alebo podľa názvu priečinka (napr. "genesis" z USB skriptu)
+            val hinted = Systems.byId(systemHint) ?: Systems.byFolder(systemHint)
+            var zipOnUsb = false
+            if (ext == "zip" && hinted?.id != "arcade") {
+                if (toUsb) {
+                    // Na USB necháme zip tak – appka ho rozbalí až pri spustení
+                    zipOnUsb = true
+                } else {
+                    val extracted = tryExtractConsoleZip(temp, hinted)
+                    if (extracted != null) {
+                        temp.delete()
+                        refresh()
+                        return extracted
+                    }
+                    if (hinted != null) return ImportResult(false, "V zipe som nenašiel hru pre ${hinted.name}")
+                }
             }
             val system =
-                hinted ?: Systems.byUniqueExtension(ext) ?: when (ext) {
+                hinted ?: (if (zipOnUsb) zipEntry(temp, null)?.first else null) ?: Systems.byUniqueExtension(ext) ?: when (ext) {
                     "zip" -> Systems.byId("arcade")
                     "bin" -> Systems.byId("megadrive")
                     "iso", "img" -> Systems.byId("psx")
                     else -> null
                 } ?: return ImportResult(false, "Neznámy formát .$ext – vyber konzolu ručne")
-            if (ext !in system.extensions) {
+            if (ext !in system.extensions && !zipOnUsb) {
                 return ImportResult(false, "${system.name} nepodporuje súbory .$ext")
             }
-            moveFile(temp, File(File(romsDir, system.id).apply { mkdirs() }, name))
+            moveFile(temp, File(File(base, system.id).apply { mkdirs() }, name))
             refresh()
-            return ImportResult(true, "${Game.prettyTitle(name.substringBeforeLast('.'), system)} → ${system.name}", system.id)
+            val where = if (toUsb) " (USB)" else ""
+            return ImportResult(true, "${Game.prettyTitle(name.substringBeforeLast('.'), system)} → ${system.name}$where", system.id)
         } finally {
             temp.delete()
         }
+    }
+
+    private fun safeName(originalName: String) = File(originalName).name.replace(Regex("[\\\\/:*?\"<>|]"), "_").ifBlank { "hra" }
+
+    /**
+     * Priečinok Roms na USB kľúči, kam sa dá zapisovať. Na RPi je kľúč často len v
+     * /mnt/media_rw (nie v /storage), kam adb nemá prístup – appka s povolením k úložisku áno.
+     */
+    fun usbRomsDir(): File? {
+        if (!hasStorageAccess()) return null
+        val candidates = mutableListOf<File>()
+        File("/storage").listFiles()?.filter { it.isDirectory && it.name != "emulated" && it.name != "self" }?.let(candidates::addAll)
+        File("/mnt/media_rw").listFiles()?.filter { it.isDirectory }?.let(candidates::addAll)
+        return candidates.firstOrNull { it.canWrite() }?.let { File(it, "Roms") }
+    }
+
+    /** Je už súbor s týmto názvom a veľkosťou v knižnici? (aby skript neposielal hry znova) */
+    fun hasFile(originalName: String, size: Long, toUsb: Boolean): Boolean {
+        val base = (if (toUsb) usbRomsDir() else romsDir) ?: return false
+        val name = safeName(originalName)
+        return base.listFiles()?.any { dir -> File(dir, name).let { it.isFile && it.length() == size } } == true
     }
 
     private fun tryExtractConsoleZip(zip: File, hinted: GameSystem?): ImportResult? =
