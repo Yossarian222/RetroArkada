@@ -145,7 +145,13 @@ class GameActivity : ComponentActivity() {
             retroView.getRumbleEvents().collect { rumble(it.port, maxOf(it.strengthWeak, it.strengthStrong)) }
         }
 
-        Toast.makeText(this, "Menu: View + Menu na ovládači, tlačidlo Xbox alebo Späť", Toast.LENGTH_LONG).show()
+        val hint =
+            if (game.system.id == "psx" && Library.ps1BiosName() == null) {
+                "Chýba PS1 BIOS (scph5501.bin) – videá a niektoré scény môžu zamrznúť"
+            } else {
+                "Menu: View + Menu na ovládači, tlačidlo Xbox alebo Späť"
+            }
+        Toast.makeText(this, hint, Toast.LENGTH_LONG).show()
     }
 
     override fun onStart() {

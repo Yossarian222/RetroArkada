@@ -134,6 +134,8 @@ fun SettingsScreen(onAdd: () -> Unit) {
                     }
                 }
                 Info("Priečinky na USB: Roms/nes, Roms/snes, Roms/psx, Roms/arcade…")
+                val bios = remember(games) { Library.ps1BiosName() }
+                Info(if (bios != null) "PS1 BIOS: ✓ $bios" else "PS1 BIOS: ✗ chýba – daj scph5501.bin na USB do Roms (PS1 hry môžu zamŕzať)")
                 Spacer(Modifier.height(16.dp))
                 Info("Verzia ${BuildInfo.version(context)}")
             }

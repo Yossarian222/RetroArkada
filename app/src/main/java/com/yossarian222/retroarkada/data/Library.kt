@@ -133,7 +133,7 @@ object Library {
     }
 
     private fun gamesInFolder(dir: File, system: GameSystem, managed: Boolean): List<Game> {
-        val files = dir.listFiles()?.filter { it.isFile && !it.name.startsWith(".") } ?: return emptyList()
+        val files = dir.listFiles()?.filter { it.isFile && !it.name.startsWith(".") && !isBiosFile(it.name) } ?: return emptyList()
         val hasCue = files.any { it.extension.equals("cue", true) }
         val hasM3u = files.any { it.extension.equals("m3u", true) }
         return files.filter { f ->
@@ -177,14 +177,30 @@ object Library {
         }
     }
 
-    /** BIOS súbory z priečinka Roms/bios na USB sa skopírujú do systémového priečinka emulátorov. */
+    private val ps1Bios = Regex("(?i)^(scph\\d+[a-z]?|psxonpsp\\d+|ps1_rom|openbios)\\.bin$")
+    private val knownBios =
+        setOf("disksys.rom", "gba_bios.bin", "gb_bios.bin", "gbc_bios.bin", "syscard3.pce", "syscard2.pce", "syscard1.pce")
+
+    private fun isBiosFile(name: String) = ps1Bios.matches(name) || name.lowercase() in knownBios
+
+    /** Nájdený PS1 BIOS (napr. scph5501.bin) v systémovom priečinku emulátorov, alebo null. */
+    fun ps1BiosName(): String? = biosDir.listFiles()?.map { it.name }?.filter { ps1Bios.matches(it) }?.minOrNull()
+
+    /**
+     * BIOS súbory z USB sa skopírujú do systémového priečinka emulátorov: celý priečinok Roms/bios
+     * a známe BIOS súbory (scph5501.bin…) kdekoľvek v Roms a jeho podpriečinkoch.
+     */
     private fun importBiosFrom(root: File) {
+        val found = mutableListOf<File>()
         listOf("bios", "BIOS", "Bios", "system").map { File(root, it) }.filter { it.isDirectory }.forEach { dir ->
-            dir.listFiles()?.filter { it.isFile && it.length() in 1..64L * 1024 * 1024 }?.forEach { f ->
-                val target = File(biosDir, f.name)
-                if (!target.exists() || target.length() != f.length()) {
-                    runCatching { f.copyTo(target, overwrite = true) }
-                }
+            dir.listFiles()?.filter { it.isFile }?.let(found::addAll)
+        }
+        root.walkTopDown().maxDepth(2).filter { it.isFile && isBiosFile(it.name) }.forEach(found::add)
+        found.filter { it.length() in 1..64L * 1024 * 1024 }.forEach { f ->
+            // Názov malými písmenami – emulátory hľadajú napr. presne "scph5501.bin"
+            val target = File(biosDir, if (isBiosFile(f.name)) f.name.lowercase() else f.name)
+            if (!target.exists() || target.length() != f.length()) {
+                runCatching { f.copyTo(target, overwrite = true) }
             }
         }
     }
