@@ -30,24 +30,25 @@ configure<ApplicationExtension> {
         }
     }
 
+    // Release kľúč je len v GitHub Secrets (ARKADA_KEYSTORE_B64, ARKADA_KS_PASS), nikdy v repozitári.
+    // CI ho rozbalí do súboru a cestu dá do ARKADA_KS_PATH. Každá verzia podpísaná týmto kľúčom
+    // sa nainštaluje ako aktualizácia (pozície ostanú). Lokálny build bez kľúča použije debug kľúč.
+    val ksPath = System.getenv("ARKADA_KS_PATH")?.takeIf { it.isNotBlank() }
     signingConfigs {
-        // Pevný kľúč v repozitári, aby sa každá nová verzia nainštalovala ako aktualizácia
-        // (inak by sa pri preinštalovaní stratili uložené pozície).
-        create("arkada") {
-            storeFile = file("retroarkada.keystore")
-            storePassword = "retroarkada"
-            keyAlias = "retroarkada"
-            keyPassword = "retroarkada"
+        if (ksPath != null) {
+            create("arkada") {
+                storeFile = file(ksPath)
+                storePassword = System.getenv("ARKADA_KS_PASS")
+                keyAlias = "retroarkada"
+                keyPassword = System.getenv("ARKADA_KS_PASS")
+            }
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("arkada")
-        }
-        debug {
-            signingConfig = signingConfigs.getByName("arkada")
+            signingConfig = if (ksPath != null) signingConfigs.getByName("arkada") else signingConfigs.getByName("debug")
         }
     }
 

@@ -5,3 +5,8 @@ local.properties
 *.iml
 # Jadrá sa sťahujú v CI skriptom scripts/download-cores.sh
 app/src/main/jniLibs/
+
+# Podpisové kľúče patria len do GitHub Secrets
+*.keystore
+*.jks
+*.p12

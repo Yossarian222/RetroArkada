@@ -35,7 +35,23 @@ jobs:
       - name: Stiahnuť libretro jadrá
         run: ./scripts/download-cores.sh
 
+      - name: Rozbaliť podpisový kľúč
+        env:
+          KS: ${{ secrets.ARKADA_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS" ]; then
+            echo "$KS" | base64 -d > "$RUNNER_TEMP/arkada.p12"
+            echo "ARKADA_KS_PATH=$RUNNER_TEMP/arkada.p12" >> "$GITHUB_ENV"
+          elif [ "${{ github.ref_name }}" = "${{ github.event.repository.default_branch }}" ]; then
+            echo "::error::Chýba secret ARKADA_KEYSTORE_B64 – release bez neho nepodpíšem."
+            exit 1
+          else
+            echo "::warning::Bez ARKADA_KEYSTORE_B64 – APK je podpísané debug kľúčom."
+          fi
+
       - name: Zostaviť APK
+        env:
+          ARKADA_KS_PASS: ${{ secrets.ARKADA_KS_PASS }}
         run: ./gradlew --no-daemon assembleRelease
 
       - name: Premenovať APK
