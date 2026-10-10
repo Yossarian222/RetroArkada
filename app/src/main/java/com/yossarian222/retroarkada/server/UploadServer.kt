@@ -73,7 +73,7 @@ class UploadServer private constructor(private val context: Context, port: Int) 
 
     private fun info(): JSONObject {
         val systems = JSONArray()
-        Library.availableSystems.forEach { systems.put(JSONObject().put("id", it.id).put("name", "${it.maker} ${it.name}")) }
+        Library.availableSystems.forEach { systems.put(JSONObject().put("id", it.id).put("name", it.fullName)) }
         val games = JSONArray()
         Library.games.value.forEach {
             games.put(

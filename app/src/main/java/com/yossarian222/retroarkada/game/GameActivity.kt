@@ -163,7 +163,7 @@ class GameActivity : ComponentActivity() {
         val intent =
             Intent(this, MenuActivity::class.java)
                 .putExtra(MenuActivity.EXTRA_TITLE, game.title)
-                .putExtra(MenuActivity.EXTRA_SYSTEM, "${game.system.maker} ${game.system.name}")
+                .putExtra(MenuActivity.EXTRA_SYSTEM, game.system.fullName)
                 .putExtra(MenuActivity.EXTRA_HAS_SLOT, Library.stateFile(game, "slot1").exists())
                 .putExtra(MenuActivity.EXTRA_FAST, fastForward)
                 .putExtra(MenuActivity.EXTRA_DISKS, runCatching { retroView.getAvailableDisks() }.getOrDefault(0))

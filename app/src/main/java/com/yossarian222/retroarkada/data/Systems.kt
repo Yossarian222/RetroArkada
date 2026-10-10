@@ -23,6 +23,9 @@ data class GameSystem(
     val stickAsDpad: Boolean = true,
 ) {
     val coreLibrary: String get() = "lib${core}_libretro_android.so"
+
+    /** "Nintendo Super Nintendo", ale "Nintendo 64" namiesto "Nintendo Nintendo 64". */
+    val fullName: String get() = if (name.contains(maker) || id == "arcade") name else "$maker $name"
 }
 
 object Systems {

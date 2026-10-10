@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
@@ -54,22 +56,23 @@ class MenuActivity : ComponentActivity() {
                             .width(380.dp)
                             .background(Palette.bg.copy(alpha = 0.92f), RoundedCornerShape(24.dp))
                             .border(1.dp, Palette.line, RoundedCornerShape(24.dp))
-                            .padding(28.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                            .verticalScroll(rememberScrollState())
+                            .padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text("PAUZA", color = Palette.accent, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
-                        Text(title, color = Palette.text, fontSize = 24.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(title, color = Palette.text, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         Text(system, color = Palette.muted, fontSize = 14.sp)
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(4.dp))
                         val first = remember { FocusRequester() }
-                        FocusButton("▶  Pokračovať", Modifier.fillMaxWidth().focusRequester(first)) { finishWith(ACTION_RESUME) }
-                        FocusButton("💾  Uložiť pozíciu", Modifier.fillMaxWidth()) { finishWith(ACTION_SAVE) }
-                        if (hasSlot) FocusButton("📂  Načítať pozíciu", Modifier.fillMaxWidth()) { finishWith(ACTION_LOAD) }
-                        FocusButton(if (fast) "⏩  Vypnúť rýchlo vpred" else "⏩  Rýchlo vpred", Modifier.fillMaxWidth()) { finishWith(ACTION_FAST) }
-                        FocusButton("🖥  Filter: ${Library.prefs.videoFilter.label}", Modifier.fillMaxWidth()) { finishWith(ACTION_FILTER) }
-                        if (disks > 1) FocusButton("💿  Vymeniť disk", Modifier.fillMaxWidth()) { finishWith(ACTION_DISK) }
-                        FocusButton("↺  Reštartovať hru", Modifier.fillMaxWidth()) { finishWith(ACTION_RESET) }
-                        FocusButton("✕  Ukončiť hru", Modifier.fillMaxWidth(), subtitle = "Postup sa uloží automaticky") { finishWith(ACTION_QUIT) }
+                        FocusButton("▶  Pokračovať", Modifier.fillMaxWidth().focusRequester(first), compact = true) { finishWith(ACTION_RESUME) }
+                        FocusButton("💾  Uložiť pozíciu", Modifier.fillMaxWidth(), compact = true) { finishWith(ACTION_SAVE) }
+                        if (hasSlot) FocusButton("📂  Načítať pozíciu", Modifier.fillMaxWidth(), compact = true) { finishWith(ACTION_LOAD) }
+                        FocusButton(if (fast) "⏩  Vypnúť rýchlo vpred" else "⏩  Rýchlo vpred", Modifier.fillMaxWidth(), compact = true) { finishWith(ACTION_FAST) }
+                        FocusButton("🖥  Filter: ${Library.prefs.videoFilter.label}", Modifier.fillMaxWidth(), compact = true) { finishWith(ACTION_FILTER) }
+                        if (disks > 1) FocusButton("💿  Vymeniť disk", Modifier.fillMaxWidth(), compact = true) { finishWith(ACTION_DISK) }
+                        FocusButton("↺  Reštartovať hru", Modifier.fillMaxWidth(), compact = true) { finishWith(ACTION_RESET) }
+                        FocusButton("✕  Ukončiť hru", Modifier.fillMaxWidth(), compact = true, subtitle = "Postup sa uloží automaticky") { finishWith(ACTION_QUIT) }
                         LaunchedEffect(Unit) { first.requestFocus() }
                     }
                 }

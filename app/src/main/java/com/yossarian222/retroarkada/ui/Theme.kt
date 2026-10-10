@@ -68,6 +68,7 @@ fun FocusButton(
     text: String,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    compact: Boolean = false,
     onClick: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -82,11 +83,11 @@ fun FocusButton(
             .border(1.dp, if (focused) Color.Transparent else Palette.line, RoundedCornerShape(14.dp))
             .onFocusChanged { focused = it.isFocused }
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
-            .padding(horizontal = 22.dp, vertical = 12.dp),
+            .padding(horizontal = 22.dp, vertical = if (compact) 8.dp else 12.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
         androidx.compose.foundation.layout.Column {
-            Text(text, color = fg, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            Text(text, color = fg, fontSize = if (compact) 16.sp else 17.sp, fontWeight = FontWeight.SemiBold)
             if (subtitle != null) Text(subtitle, color = if (focused) Palette.bg.copy(alpha = 0.7f) else Palette.muted, fontSize = 13.sp)
         }
     }

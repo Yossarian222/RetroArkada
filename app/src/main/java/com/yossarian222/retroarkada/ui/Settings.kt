@@ -88,11 +88,21 @@ fun SettingsScreen(onAdd: () -> Unit) {
                 Info("Hra sa pri odchode automaticky uloží a nabudúce pokračuje")
                 Spacer(Modifier.height(16.dp))
                 Text("Konzoly", color = Palette.text, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
-                Systems.ALL.forEach { s ->
-                    val ok = s in Library.availableSystems
-                    val count = games.count { it.system == s }
-                    Info("${if (ok) "●" else "○"}  ${s.maker} ${s.name}  ·  priečinok ${s.id}  ·  ${if (ok) "$count hier" else "chýba jadro ${s.core}"}")
+                // Dva stĺpce, aby sa zoznam zmestil na obrazovku
+                Systems.ALL.chunked((Systems.ALL.size + 1) / 2).let { cols ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                        cols.forEach { col ->
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                col.forEach { s ->
+                                    val ok = s in Library.availableSystems
+                                    val count = games.count { it.system == s }
+                                    Info("${if (ok) "●" else "○"}  ${s.name} · ${if (ok) "$count" else "chýba jadro"}")
+                                }
+                            }
+                        }
+                    }
                 }
+                Info("Priečinky na USB: Roms/nes, Roms/snes, Roms/psx, Roms/arcade…")
                 Spacer(Modifier.height(16.dp))
                 Info("Verzia ${BuildInfo.version(context)}")
             }

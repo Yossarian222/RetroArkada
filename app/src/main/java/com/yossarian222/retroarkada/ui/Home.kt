@@ -232,7 +232,7 @@ private fun Hero(game: Game?, modifier: Modifier) {
         Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(10.dp).clip(CircleShape).background(Color(game.system.color)))
-            Text("  ${game.system.maker} ${game.system.name} · ${game.system.year}", color = Palette.muted, fontSize = 15.sp)
+            Text("  ${game.system.fullName} · ${game.system.year}", color = Palette.muted, fontSize = 15.sp)
             Spacer(Modifier.width(28.dp))
             Hint("A", Color(0xFF3DDC97), "Hrať")
             Hint("Y", Color(0xFFFFC83D), "Obľúbená")
@@ -298,7 +298,7 @@ private fun GameCard(
                 onClick = onPlay,
             ),
     ) {
-        GeneratedCover(game, Modifier.fillMaxSize())
+        GeneratedCover(game, Modifier.fillMaxSize(), labelEndPadding = if (favorite) 26.dp else 0.dp)
         AsyncImage(model = game.coverUrl, contentDescription = game.title, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         if (favorite) {
             Box(
@@ -311,7 +311,7 @@ private fun GameCard(
 
 /** Obal pre hry, ku ktorým sa nenašiel obrázok – farby podľa konzoly. */
 @Composable
-private fun GeneratedCover(game: Game, modifier: Modifier) {
+private fun GeneratedCover(game: Game, modifier: Modifier, labelEndPadding: androidx.compose.ui.unit.Dp = 0.dp) {
     val c = Color(game.system.color)
     Box(modifier.background(Brush.linearGradient(listOf(c, Color(0xFF0B0D17)))).padding(10.dp)) {
         Text(
@@ -320,7 +320,9 @@ private fun GeneratedCover(game: Game, modifier: Modifier) {
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.5.sp,
-            modifier = Modifier.align(Alignment.TopStart),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.align(Alignment.TopStart).padding(end = labelEndPadding),
         )
         Text(
             game.title,
@@ -434,7 +436,7 @@ private fun DetailScreen(game: Game, onClose: () -> Unit) {
             Spacer(Modifier.width(48.dp))
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(game.title, color = Palette.text, fontSize = 34.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text("${game.system.maker} ${game.system.name} · ${game.system.year}", color = Palette.muted, fontSize = 16.sp)
+                Text("${game.system.fullName} · ${game.system.year}", color = Palette.muted, fontSize = 16.sp)
                 Text(game.file.name, color = Palette.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(8.dp))
                 val fr = remember { FocusRequester() }
