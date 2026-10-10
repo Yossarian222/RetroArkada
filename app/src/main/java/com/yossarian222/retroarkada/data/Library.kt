@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipFile
 
 /**
@@ -145,17 +146,81 @@ object Library {
     private fun scanExternal(dir: File, folderSystem: GameSystem?, depth: Int, out: MutableList<Game>, available: Set<GameSystem>) {
         if (depth > 3) return
         val system = Systems.byFolder(dir.name)?.takeIf { it in available } ?: folderSystem
+        val zips = dir.listFiles()?.filter { it.isFile && it.extension.equals("zip", true) }.orEmpty()
+        val arcade = Systems.byId("arcade")?.takeIf { it in available }
         if (system != null) {
             out += gamesInFolder(dir, system, managed = false)
+            if (system.id != "arcade") {
+                zips.forEach { zip -> zipEntry(zip, system)?.let { out += Game(zip, it.first, managed = false, archiveEntry = it.second) } }
+            }
         } else {
             dir.listFiles()?.filter { it.isFile }?.forEach { f ->
                 val s = Systems.byUniqueExtension(f.extension)
                 if (s != null && s in available) out += Game(f, s, managed = false)
             }
+            // Zip bez priečinka konzoly: hra pre konzolu vo vnútri, inak arkádový ROM set
+            zips.forEach { zip ->
+                val found = zipEntry(zip, null)?.takeIf { it.first in available }
+                when {
+                    found != null -> out += Game(zip, found.first, managed = false, archiveEntry = found.second)
+                    arcade != null -> out += Game(zip, arcade, managed = false)
+                }
+            }
         }
         dir.listFiles()?.filter { it.isDirectory && !it.name.startsWith(".") }?.forEach {
             scanExternal(it, system, depth + 1, out, available)
         }
+    }
+
+    // ------------------------------------------------------------------ hry v zipe
+
+    private val zipIndex = ConcurrentHashMap<String, Pair<GameSystem, String>?>()
+    private val preferredEntries = listOf("m3u", "cue", "chd", "pbp")
+
+    /** Nájde v zipe hru pre [hint] (alebo pre konzolu s jednoznačnou príponou). Výsledok sa pamätá. */
+    private fun zipEntry(zip: File, hint: GameSystem?): Pair<GameSystem, String>? {
+        val key = "${zip.absolutePath}|${zip.lastModified()}|${hint?.id}"
+        if (zipIndex.containsKey(key)) return zipIndex[key]
+        val result =
+            runCatching {
+                ZipFile(zip).use { zf ->
+                    zf.entries().toList()
+                        .filter { !it.isDirectory }
+                        .mapNotNull { e ->
+                            val ext = e.name.substringAfterLast('.', "").lowercase()
+                            val s = if (hint != null) hint.takeIf { ext in it.extensions } else Systems.byUniqueExtension(ext)
+                            s?.let { Triple(it, e.name, ext) }
+                        }
+                        .minByOrNull { (_, _, ext) -> preferredEntries.indexOf(ext).let { if (it < 0) 99 else it } }
+                        ?.let { (s, name, _) -> s to name }
+                }
+            }.getOrNull()
+        zipIndex[key] = result
+        return result
+    }
+
+    /**
+     * Vráti súbor, ktorý sa má načítať do emulátora. Hru zo zipu najprv rozbalí do dočasného
+     * priečinka; drží sa len pár naposledy hraných, aby nezaberali miesto.
+     */
+    fun prepareRom(game: Game): File {
+        val entry = game.archiveEntry ?: return game.file
+        val root = File(app.getExternalFilesDir(null) ?: app.filesDir, "unzipped").apply { mkdirs() }
+        val dir = File(root, "${Integer.toHexString(game.id.hashCode())}_${game.file.lastModified()}")
+        val done = File(dir, ".done")
+        if (!done.exists()) {
+            dir.deleteRecursively()
+            dir.mkdirs()
+            ZipFile(game.file).use { zf ->
+                zf.entries().toList().filter { !it.isDirectory }.forEach { e ->
+                    File(dir, File(e.name).name).outputStream().use { out -> zf.getInputStream(e).use { it.copyTo(out) } }
+                }
+            }
+            done.createNewFile()
+        }
+        dir.setLastModified(System.currentTimeMillis())
+        root.listFiles()?.filter { it.isDirectory }?.sortedByDescending { it.lastModified() }?.drop(3)?.forEach { it.deleteRecursively() }
+        return File(dir, File(entry).name)
     }
 
     // ------------------------------------------------------------------ import

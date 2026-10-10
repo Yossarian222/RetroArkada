@@ -10,7 +10,9 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.view.Gravity
 import android.widget.FrameLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,7 +25,9 @@ import com.swordfish.libretrodroid.GLRetroViewData
 import com.swordfish.libretrodroid.GLRetroView.GLRetroEvents
 import com.yossarian222.retroarkada.data.Game
 import com.yossarian222.retroarkada.data.Library
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.concurrent.thread
 import kotlin.math.abs
@@ -65,11 +69,40 @@ class GameActivity : ComponentActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
 
+        val root = FrameLayout(this)
+        root.setBackgroundColor(0xFF000000.toInt())
+        setContentView(root)
+
+        if (game.archiveEntry == null) {
+            startEmulator(root, null, core, game.file)
+        } else {
+            // Hra v zipe (USB): najprv ju rozbaľ, potom spusti
+            val loading =
+                TextView(this).apply {
+                    text = "Rozbaľujem ${game.title}…"
+                    setTextColor(0xFFEEF0FF.toInt())
+                    textSize = 22f
+                    gravity = Gravity.CENTER
+                }
+            root.addView(loading, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+            lifecycleScope.launch {
+                val rom = withContext(Dispatchers.IO) { runCatching { Library.prepareRom(game) }.getOrNull() }
+                if (rom == null || !rom.exists()) {
+                    Toast.makeText(this@GameActivity, "Hru sa nepodarilo rozbaliť", Toast.LENGTH_LONG).show()
+                    finish()
+                } else {
+                    startEmulator(root, loading, core, rom)
+                }
+            }
+        }
+    }
+
+    private fun startEmulator(root: FrameLayout, loading: View?, core: String, rom: File) {
         val sram = Library.sramFile(game)
         val data =
             GLRetroViewData(this).apply {
                 coreFilePath = core
-                gameFilePath = game.file.absolutePath
+                gameFilePath = rom.absolutePath
                 systemDirectory = Library.biosDir.absolutePath
                 savesDirectory = Library.savesDir(game.system).absolutePath
                 variables = game.system.variables.toTypedArray()
@@ -81,10 +114,8 @@ class GameActivity : ComponentActivity() {
         retroView = GLRetroView(this, data)
         lifecycle.addObserver(retroView)
 
-        val root = FrameLayout(this)
-        root.setBackgroundColor(0xFF000000.toInt())
         root.addView(retroView, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
-        setContentView(root)
+        loading?.let(root::removeView)
         retroView.isFocusable = false
 
         lifecycleScope.launch {

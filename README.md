@@ -32,6 +32,7 @@ Hry sa dajú nahrať aj zazipované. Aplikácia ich sama rozbalí.
   a pretiahni súbory do stránky.
 - **USB kľúč:** v *Nastaveniach* povoľ prístup k úložisku. Hry daj do priečinka `Roms`
   (napr. `Roms/snes/…`, `Roms/psx/…`). Konzola sa rozpozná podľa priečinka alebo podľa prípony.
+  Hry môžu byť aj zazipované – rozbalia sa automaticky pri spustení (drží sa len pár posledných).
 - **Obaly** sa sťahujú automaticky z libretro-thumbnails, keď sa súbor volá podľa No-Intro alebo Redump,
   napr. `Super Mario World (USA).sfc`.
 - **BIOS** (voliteľný, napr. `scph5501.bin` pre PS1) nahraj cez web s voľbou *BIOS*.

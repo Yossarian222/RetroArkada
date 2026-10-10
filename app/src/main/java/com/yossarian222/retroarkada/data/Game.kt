@@ -8,10 +8,12 @@ data class Game(
     val system: GameSystem,
     /** Hra je v internom úložisku aplikácie (dá sa zmazať z aplikácie). */
     val managed: Boolean,
+    /** Ak je hra zabalená v zipe (napr. na USB), názov súboru hry vo vnútri zipu. */
+    val archiveEntry: String? = null,
 ) {
     val id: String get() = file.absolutePath
-    val baseName: String get() = file.nameWithoutExtension
-    val title: String = prettyTitle(file.nameWithoutExtension, system)
+    val baseName: String get() = archiveEntry?.let { File(it).nameWithoutExtension } ?: file.nameWithoutExtension
+    val title: String = prettyTitle(baseName, system)
 
     /** Obal hry z libretro-thumbnails, ak názov súboru zodpovedá No-Intro / Redump názvu. */
     val coverUrl: String?
