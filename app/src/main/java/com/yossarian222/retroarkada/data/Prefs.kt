@@ -22,6 +22,11 @@ class Prefs(context: Context) {
         get() = runCatching { VideoFilter.valueOf(sp.getString("filter", null)!!) }.getOrDefault(VideoFilter.SHARP)
         set(value) = sp.edit().putString("filter", value.name).apply()
 
+    /** Nízka odozva zvuku = menšia vyrovnávacia pamäť; na RPi cez HDMI potom zvuk praská. */
+    var lowLatencyAudio: Boolean
+        get() = sp.getBoolean("low_latency_audio", false)
+        set(value) = sp.edit().putBoolean("low_latency_audio", value).apply()
+
     var favorites: Set<String>
         get() = sp.getStringSet("favorites", emptySet())!!.toSet()
         set(value) = sp.edit().putStringSet("favorites", value).apply()

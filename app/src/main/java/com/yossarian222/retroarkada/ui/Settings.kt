@@ -65,6 +65,15 @@ fun SettingsScreen(onAdd: () -> Unit) {
                     filter = filter.next()
                     Library.prefs.videoFilter = filter
                 }
+                var lowLatency by remember { mutableStateOf(Library.prefs.lowLatencyAudio) }
+                FocusButton(
+                    "Zvuk",
+                    Modifier.width(400.dp),
+                    subtitle = if (lowLatency) "Nízka odozva (môže praskať)" else "Plynulý – bez praskania (odporúčané)",
+                ) {
+                    lowLatency = !lowLatency
+                    Library.prefs.lowLatencyAudio = lowLatency
+                }
                 FocusButton(
                     "Prístup k USB a úložisku",
                     Modifier.width(400.dp),

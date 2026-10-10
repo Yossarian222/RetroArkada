@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
+import android.hardware.input.InputManager
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -109,7 +110,8 @@ class GameActivity : ComponentActivity() {
                 saveRAMState = sram.takeIf { it.exists() }?.readBytes()
                 shader = Library.prefs.videoFilter.shader
                 rumbleEventsEnabled = true
-                preferLowLatencyAudio = true
+                // Väčšia zvuková vyrovnávacia pamäť = čistý zvuk bez praskania (RPi cez HDMI)
+                preferLowLatencyAudio = Library.prefs.lowLatencyAudio
             }
         retroView = GLRetroView(this, data)
         lifecycle.addObserver(retroView)
@@ -144,6 +146,16 @@ class GameActivity : ComponentActivity() {
         }
 
         Toast.makeText(this, "Menu: View + Menu na ovládači, tlačidlo Xbox alebo Späť", Toast.LENGTH_LONG).show()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        getSystemService(InputManager::class.java).registerInputDeviceListener(deviceListener, null)
+    }
+
+    override fun onStop() {
+        getSystemService(InputManager::class.java).unregisterInputDeviceListener(deviceListener)
+        super.onStop()
     }
 
     override fun onResume() {
@@ -249,7 +261,40 @@ class GameActivity : ComponentActivity() {
 
     // ------------------------------------------------------------------ ovládanie
 
-    private fun portFor(deviceId: Int): Int = ports.getOrPut(deviceId) { minOf(ports.size, 3) }
+    /**
+     * Ovládač dostane najnižší voľný port. Keď sa Bluetooth ovládač odpojí a znova pripojí, má
+     * nové deviceId – odpojené zariadenia preto z mapy vyhodíme, aby sa vrátil na port hráča 1.
+     */
+    private fun portFor(deviceId: Int): Int {
+        ports[deviceId]?.let { return it }
+        ports.keys.filter { InputDevice.getDevice(it) == null }.forEach(::forgetDevice)
+        val port = (0..3).firstOrNull { it !in ports.values } ?: 3
+        ports[deviceId] = port
+        return port
+    }
+
+    private fun forgetDevice(deviceId: Int) {
+        val port = ports.remove(deviceId) ?: return
+        if (!::retroView.isInitialized || port in ports.values) return
+        // Uvoľni tlačidlá, ktoré ostali „držané“ v momente odpojenia
+        heldButtons.remove(port)?.forEach { retroView.sendKeyEvent(KeyEvent.ACTION_UP, toRetro(it), port) }
+        triggerState.remove(port)?.let { state ->
+            if (state[0]) retroView.sendKeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BUTTON_L2, port)
+            if (state[1]) retroView.sendKeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BUTTON_R2, port)
+        }
+        retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_DPAD, 0f, 0f, port)
+        retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_ANALOG_LEFT, 0f, 0f, port)
+        retroView.sendMotionEvent(GLRetroView.MOTION_SOURCE_ANALOG_RIGHT, 0f, 0f, port)
+    }
+
+    private val deviceListener =
+        object : InputManager.InputDeviceListener {
+            override fun onInputDeviceAdded(deviceId: Int) = Unit
+
+            override fun onInputDeviceRemoved(deviceId: Int) = forgetDevice(deviceId)
+
+            override fun onInputDeviceChanged(deviceId: Int) = Unit
+        }
 
     /** Android má A/B a X/Y prehodené oproti RetroPadu – mapujeme podľa polohy tlačidiel. */
     private fun toRetro(keyCode: Int): Int =

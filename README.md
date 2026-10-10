@@ -33,6 +33,11 @@ Hry sa dajú nahrať aj zazipované. Aplikácia ich sama rozbalí.
 - **USB kľúč:** v *Nastaveniach* povoľ prístup k úložisku. Hry daj do priečinka `Roms`
   (napr. `Roms/snes/…`, `Roms/psx/…`). Konzola sa rozpozná podľa priečinka alebo podľa prípony.
   Hry môžu byť aj zazipované – rozbalia sa automaticky pri spustení (drží sa len pár posledných).
+- **Z PC cez adb na USB v RPi:** spusti `scripts/nahraj-hry.bat` (dvojklik) alebo
+  `.\scripts\nahraj-hry.ps1 -Zdroj "E:\Roms"`. Skript nájde USB kľúč v RPi a nahrá naň len nové
+  a zmenené hry do `Roms/`. Po zapojení USB kľúča sa knižnica obnoví sama.
+- **BIOS** (napr. `scph5501.bin` pre PS1) môžeš dať aj na USB do priečinka `Roms/bios` – appka si ho
+  skopíruje sama. PS1 hry s originálnym BIOSom bežia stabilnejšie.
 - **Obaly** sa sťahujú automaticky z libretro-thumbnails, keď sa súbor volá podľa No-Intro alebo Redump,
   napr. `Super Mario World (USA).sfc`.
 - **BIOS** (voliteľný, napr. `scph5501.bin` pre PS1) nahraj cez web s voľbou *BIOS*.

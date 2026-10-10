@@ -126,6 +126,7 @@ object Library {
             result += gamesInFolder(dir, system, managed = true)
         }
         for (root in externalRoots()) {
+            importBiosFrom(root)
             scanExternal(root, null, depth = 0, out = result, available = available)
         }
         return result.distinctBy { it.id }.sortedBy { it.title.lowercase() }
@@ -173,6 +174,18 @@ object Library {
         }
         dir.listFiles()?.filter { it.isDirectory && !it.name.startsWith(".") }?.forEach {
             scanExternal(it, system, depth + 1, out, available)
+        }
+    }
+
+    /** BIOS súbory z priečinka Roms/bios na USB sa skopírujú do systémového priečinka emulátorov. */
+    private fun importBiosFrom(root: File) {
+        listOf("bios", "BIOS", "Bios", "system").map { File(root, it) }.filter { it.isDirectory }.forEach { dir ->
+            dir.listFiles()?.filter { it.isFile && it.length() in 1..64L * 1024 * 1024 }?.forEach { f ->
+                val target = File(biosDir, f.name)
+                if (!target.exists() || target.length() != f.length()) {
+                    runCatching { f.copyTo(target, overwrite = true) }
+                }
+            }
         }
     }
 
