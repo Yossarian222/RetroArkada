@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Environment
+import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -12,7 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.io.File
-import java.util.concurrent.ConcurrentHashMap
+import java.util.Collections
 import java.util.zip.ZipFile
 
 /**
@@ -75,6 +76,9 @@ object Library {
             _scanning.value = true
             try {
                 _games.value = scan()
+            } catch (e: Exception) {
+                // Chybný súbor alebo nedostupné USB nesmie zhodiť celú aplikáciu
+                Log.e("Library", "Scan failed", e)
             } finally {
                 _scanning.value = false
             }
@@ -174,7 +178,8 @@ object Library {
 
     // ------------------------------------------------------------------ hry v zipe
 
-    private val zipIndex = ConcurrentHashMap<String, Pair<GameSystem, String>?>()
+    // HashMap (nie ConcurrentHashMap), lebo musí vedieť uložiť aj null = "v zipe nie je hra"
+    private val zipIndex: MutableMap<String, Pair<GameSystem, String>?> = Collections.synchronizedMap(HashMap())
     private val preferredEntries = listOf("m3u", "cue", "chd", "pbp")
 
     /** Nájde v zipe hru pre [hint] (alebo pre konzolu s jednoznačnou príponou). Výsledok sa pamätá. */
