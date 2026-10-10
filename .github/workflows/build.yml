@@ -51,8 +51,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          echo '{"versionCode": ${{ github.run_number }}, "versionName": "1.0.${{ github.run_number }}"}' > version.json
           gh release delete latest --cleanup-tag --yes || true
-          gh release create latest RetroArkada.apk \
+          gh release create latest RetroArkada.apk version.json \
             --target "$GITHUB_SHA" \
             --title "Retro Arkáda – najnovšia verzia (build ${{ github.run_number }})" \
             --notes "Stiahni RetroArkada.apk a nainštaluj na Android TV."

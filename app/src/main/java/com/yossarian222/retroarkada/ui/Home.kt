@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.yossarian222.retroarkada.data.Game
 import com.yossarian222.retroarkada.data.Library
+import com.yossarian222.retroarkada.data.Updater
 import com.yossarian222.retroarkada.game.GameActivity
 import com.yossarian222.retroarkada.server.UploadServer
 import kotlinx.coroutines.delay
@@ -210,12 +211,32 @@ private fun TopBar(onAdd: () -> Unit, onSettings: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 48.dp), verticalAlignment = Alignment.CenterVertically) {
         Text("RETRO ARKÁDA", style = TextStyle(brush = Palette.logo, fontSize = 26.sp, fontWeight = FontWeight.Black, letterSpacing = 2.sp))
         Spacer(Modifier.weight(1f))
+        UpdateButton()
         FocusButton("＋  Pridať hry", onClick = onAdd)
         Spacer(Modifier.width(12.dp))
         FocusButton("⚙  Nastavenia", onClick = onSettings)
         Spacer(Modifier.width(24.dp))
         Text(time, color = Palette.text, fontSize = 22.sp, fontWeight = FontWeight.Light)
     }
+}
+
+/** Tlačidlo aktualizácie v hornej lište – ukáže sa len keď je nová verzia. */
+@Composable
+private fun UpdateButton() {
+    val activity = LocalContext.current as android.app.Activity
+    val state by Updater.state.collectAsState()
+    val label =
+        when (val s = state) {
+            is Updater.State.Available -> "⬆  Aktualizovať na ${s.versionName}"
+            is Updater.State.Downloading -> "Sťahujem ${s.percent} %"
+            Updater.State.Installing -> "Inštalujem…"
+            is Updater.State.Error -> "⚠  ${s.message}"
+            else -> return
+        }
+    FocusButton(label) {
+        if (state is Updater.State.Available || state is Updater.State.Error) Updater.downloadAndInstall(activity)
+    }
+    Spacer(Modifier.width(12.dp))
 }
 
 private fun clock() = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())

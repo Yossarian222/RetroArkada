@@ -38,6 +38,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.yossarian222.retroarkada.BuildInfo
 import com.yossarian222.retroarkada.data.Library
 import com.yossarian222.retroarkada.data.Systems
+import com.yossarian222.retroarkada.data.Updater
 
 @Composable
 fun SettingsScreen(onAdd: () -> Unit) {
@@ -77,6 +78,27 @@ fun SettingsScreen(onAdd: () -> Unit) {
                     subtitle = if (scanning) "Hľadám hry…" else "${games.size} hier v knižnici",
                 ) { Library.refresh() }
                 FocusButton("Pridať hry z mobilu / PC", Modifier.width(400.dp), onClick = onAdd)
+                val update by Updater.state.collectAsState()
+                FocusButton(
+                    "Aktualizácia aplikácie",
+                    Modifier.width(400.dp),
+                    subtitle =
+                        when (val s = update) {
+                            Updater.State.Checking -> "Overujem…"
+                            Updater.State.UpToDate -> "Máš najnovšiu verziu"
+                            is Updater.State.Available -> "Nová verzia ${s.versionName} – klikni a nainštaluj"
+                            is Updater.State.Downloading -> "Sťahujem ${s.percent} %"
+                            Updater.State.Installing -> "Inštalujem…"
+                            is Updater.State.Error -> s.message
+                            Updater.State.Idle -> "Klikni a over, či je nová verzia"
+                        },
+                ) {
+                    when (update) {
+                        is Updater.State.Available -> Updater.downloadAndInstall(context as Activity)
+                        is Updater.State.Downloading, Updater.State.Installing -> Unit
+                        else -> Updater.check(context)
+                    }
+                }
                 LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
             }
             Spacer(Modifier.width(56.dp))
