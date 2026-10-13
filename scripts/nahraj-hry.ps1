@@ -16,6 +16,10 @@ param(
     [string]$Konzola = ""
 )
 
+# Odpovede appky (cez curl.exe) aj výpis sú v UTF-8, inak by bola diakritika rozsypaná
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 function Chyba($text) { Write-Host "✗ $text" -ForegroundColor Red; exit 1 }
 
 if (-not (Get-Command adb -ErrorAction SilentlyContinue)) {
