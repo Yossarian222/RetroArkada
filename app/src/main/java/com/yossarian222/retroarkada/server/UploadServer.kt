@@ -34,6 +34,8 @@ class UploadServer private constructor(private val context: Context, port: Int) 
                 newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html)
             }
             session.uri == "/api/info" -> json(Response.Status.OK, info())
+            // Rýchla odpoveď pre skript nahraj-hry (/api/info pri veľkej knižnici na USB trvá dlho)
+            session.uri == "/api/status" -> json(Response.Status.OK, JSONObject().put("ok", true).put("usb", Library.usbRomsDir() != null))
             session.uri == "/api/upload" && (session.method == Method.PUT || session.method == Method.POST) ->
                 upload(session, params["name"].orEmpty(), params["system"] ?: "auto", params["dest"] == "usb")
             session.uri == "/api/has" -> {

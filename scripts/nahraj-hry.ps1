@@ -38,15 +38,24 @@ $Zdroj = (Resolve-Path -LiteralPath $Zdroj).Path.TrimEnd('\')
 # Spoj sa s webovým serverom Retro Arkády cez adb (funguje cez kábel aj sieť)
 $lokalnyPort = 18080
 $api = $null
+$posledna = ""
 foreach ($port in 8080, 8088, 8181, 9090) {
     adb forward "tcp:$lokalnyPort" "tcp:$port" | Out-Null
-    try {
-        $info = Invoke-RestMethod -Uri "http://127.0.0.1:$lokalnyPort/api/info" -TimeoutSec 5
-        $api = "http://127.0.0.1:$lokalnyPort"
-        break
-    } catch { }
+    if ($LASTEXITCODE -ne 0) { $posledna = "adb forward zlyhal"; continue }
+    # /api/status je rýchly; staršie verzie appky ho nemajú, tie skúsime cez /api/info
+    foreach ($cesta in "/api/status", "/api/info") {
+        try {
+            $info = Invoke-RestMethod -Uri "http://127.0.0.1:$lokalnyPort$cesta" -TimeoutSec 30
+            $api = "http://127.0.0.1:$lokalnyPort"
+            break
+        } catch { $posledna = "port ${port}: $($_.Exception.Message)" }
+    }
+    if ($api) { break }
 }
-if (-not $api) { Chyba "Retro Arkáda neodpovedá. Spusti ju na TV a skús znova." }
+if (-not $api) {
+    adb forward --remove "tcp:$lokalnyPort" 2>$null | Out-Null
+    Chyba "Retro Arkáda neodpovedá ($posledna). Je na TV spustená? Skús ju zavrieť a otvoriť znova."
+}
 if (-not $info.usb) {
     Chyba "Appka nevidí USB kľúč. Je zapojený? Má appka povolený prístup (Nastavenia → Prístup k USB a úložisku)?"
 }
