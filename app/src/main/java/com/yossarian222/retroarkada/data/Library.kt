@@ -48,6 +48,7 @@ object Library {
     fun init(context: Context) {
         app = context.applicationContext
         prefs = Prefs(app)
+        ArcadeIndex.init(app)
         _favorites.value = prefs.favorites
         _recent.value = prefs.recent
         Systems.ALL.forEach { File(romsDir, it.id).mkdirs() }
@@ -145,7 +146,37 @@ object Library {
                 system.id == "psx" && ext == "cue" -> !hasM3u
                 else -> true
             }
-        }.map { Game(it, system, managed) }
+        }.mapNotNull { f -> if (system.id == "arcade") arcadeGame(f, system, managed) else Game(f, system, managed) }
+    }
+
+    // ------------------------------------------------------------------ arkádové sety
+
+    private val arcadeChecked: MutableMap<String, Boolean> = Collections.synchronizedMap(HashMap())
+
+    /** Arkádová hra zo zipu; zip so zlým názvom sa premenuje, BIOS sety (neogeo…) sa nezobrazia. */
+    private fun arcadeGame(zip: File, system: GameSystem, managed: Boolean): Game? {
+        val file = fixArcadeName(zip)
+        if (ArcadeIndex.isBios(file.nameWithoutExtension)) return null
+        return Game(file, system, managed)
+    }
+
+    /**
+     * FBNeo spozná hru len podľa názvu zipu. Ak názov nepozná, nájdeme set podľa obsahu
+     * a zip premenujeme ("Metal Slug (World).zip" -> "mslug.zip"). Vráti (možno nový) súbor.
+     */
+    private fun fixArcadeName(zip: File): File {
+        if (ArcadeIndex.isKnown(zip.nameWithoutExtension)) return zip
+        val key = "${zip.absolutePath}|${zip.lastModified()}|${zip.length()}"
+        if (arcadeChecked[key] == false) return zip
+        val set = ArcadeIndex.identify(zip)
+        val target = set?.let { File(zip.parentFile, "$it.zip") }
+        if (target == null || target.exists() || !zip.renameTo(target)) {
+            arcadeChecked[key] = false
+            return zip
+        }
+        Log.i("Library", "Arkádový set ${zip.name} premenovaný na ${target.name}")
+        prefs.setArcadeAlias(zip.name, target.length(), target.name)
+        return target
     }
 
     private fun scanExternal(dir: File, folderSystem: GameSystem?, depth: Int, out: MutableList<Game>, available: Set<GameSystem>) {
@@ -168,7 +199,7 @@ object Library {
                 val found = zipEntry(zip, null)?.takeIf { it.first in available }
                 when {
                     found != null -> out += Game(zip, found.first, managed = false, archiveEntry = found.second)
-                    arcade != null -> out += Game(zip, arcade, managed = false)
+                    arcade != null -> arcadeGame(zip, arcade, managed = false)?.let { out += it }
                 }
             }
         }
@@ -306,10 +337,19 @@ object Library {
             if (ext !in system.extensions && !zipOnUsb) {
                 return ImportResult(false, "${system.name} nepodporuje súbory .$ext")
             }
-            moveFile(temp, File(File(base, system.id).apply { mkdirs() }, name))
+            var finalName = name
+            if (system.id == "arcade" && !ArcadeIndex.isKnown(name.substringBeforeLast('.'))) {
+                // Zlý názov arkádového setu: FBNeo by hlásil "Romset unknown", tak ho opravíme
+                ArcadeIndex.identify(temp)?.let {
+                    finalName = "$it.zip"
+                    prefs.setArcadeAlias(name, temp.length(), finalName)
+                }
+            }
+            moveFile(temp, File(File(base, system.id).apply { mkdirs() }, finalName))
             refresh()
             val where = if (toUsb) " (USB)" else ""
-            return ImportResult(true, "${Game.prettyTitle(name.substringBeforeLast('.'), system)} → ${system.name}$where", system.id)
+            val renamed = if (finalName != name) " (premenované na $finalName)" else ""
+            return ImportResult(true, "${Game.prettyTitle(finalName.substringBeforeLast('.'), system)} → ${system.name}$where$renamed", system.id)
         } finally {
             temp.delete()
         }
@@ -332,8 +372,8 @@ object Library {
     /** Je už súbor s týmto názvom a veľkosťou v knižnici? (aby skript neposielal hry znova) */
     fun hasFile(originalName: String, size: Long, toUsb: Boolean): Boolean {
         val base = (if (toUsb) usbRomsDir() else romsDir) ?: return false
-        val name = safeName(originalName)
-        return base.listFiles()?.any { dir -> File(dir, name).let { it.isFile && it.length() == size } } == true
+        val names = listOfNotNull(safeName(originalName), prefs.arcadeAlias(safeName(originalName), size))
+        return base.listFiles()?.any { dir -> names.any { n -> File(dir, n).let { it.isFile && it.length() == size } } } == true
     }
 
     private fun tryExtractConsoleZip(zip: File, hinted: GameSystem?): ImportResult? =

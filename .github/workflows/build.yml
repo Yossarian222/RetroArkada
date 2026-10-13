@@ -35,6 +35,12 @@ jobs:
       - name: Stiahnuť libretro jadrá
         run: ./scripts/download-cores.sh
 
+      - name: Databáza arkádových hier (FBNeo DAT)
+        run: |
+          curl -fsSL --retry 4 --retry-delay 3 -o fbneo.dat \
+            "https://raw.githubusercontent.com/libretro/FBNeo/master/dats/FinalBurn%20Neo%20(ClrMame%20Pro%20XML%2C%20Arcade%20only).dat"
+          python3 scripts/build-arcade-index.py fbneo.dat app/src/main/assets/fbneo.idx.gz
+
       - name: Zostaviť APK
         run: ./gradlew --no-daemon assembleRelease
 

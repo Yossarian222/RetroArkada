@@ -36,6 +36,12 @@ class Prefs(context: Context) {
         get() = sp.getStringSet("favorites", emptySet())!!.toSet()
         set(value) = sp.edit().putStringSet("favorites", value).apply()
 
+    /** Premenované arkádové zipy: "pôvodný názov|veľkosť" -> nový názov (aby ich skript neposielal znova). */
+    fun arcadeAlias(originalName: String, size: Long): String? = sp.getString("alias:$originalName|$size", null)
+
+    fun setArcadeAlias(originalName: String, size: Long, newName: String) =
+        sp.edit().putString("alias:$originalName|$size", newName).apply()
+
     var recent: List<String>
         get() {
             val arr = runCatching { JSONArray(sp.getString("recent", "[]")) }.getOrElse { JSONArray() }
