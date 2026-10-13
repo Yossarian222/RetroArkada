@@ -71,8 +71,10 @@ Write-Host "Nahrávam $($subory.Count) súborov z $Zdroj na USB kľúč v TV" -F
 $nove = 0; $preskocene = 0; $chyby = 0; $i = 0
 foreach ($f in $subory) {
     $i++
-    # Konzola: parameter, alebo názov priečinka (napr. Roms\snes\hra.sfc -> snes), inak podľa prípony
-    $konzola = if ($Konzola) { $Konzola } elseif ($f.DirectoryName -ne $Zdroj) { $f.Directory.Name } else { "auto" }
+    # Konzola: parameter, inak celá cesta priečinkov (napr. "Roms/psx/Harry Potter") – appka si v nej
+    # nájde názov konzoly sama; bez neho určí konzolu podľa prípony
+    $relativne = $f.DirectoryName.Substring($Zdroj.Length).Trim('\').Replace('\', '/')
+    $konzola = if ($Konzola) { $Konzola } else { ((Split-Path $Zdroj -Leaf) + "/" + $relativne).TrimEnd('/') }
     $q = "name=$([uri]::EscapeDataString($f.Name))&system=$([uri]::EscapeDataString($konzola))&dest=usb"
 
     $ma = Invoke-RestMethod -Uri "$api/api/has?$q&size=$($f.Length)" -TimeoutSec 15

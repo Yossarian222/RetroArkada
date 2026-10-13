@@ -121,6 +121,8 @@ object Library {
     private fun scan(): List<Game> {
         val available = availableSystems.toSet()
         val result = mutableListOf<Game>()
+        repairPsx(romsDir)
+        usbRomsDir()?.let(::repairPsx)
         for (system in Systems.ALL) {
             if (system !in available) continue
             val dir = File(romsDir, system.id)
@@ -135,18 +137,71 @@ object Library {
 
     private fun gamesInFolder(dir: File, system: GameSystem, managed: Boolean): List<Game> {
         val files = dir.listFiles()?.filter { it.isFile && !it.name.startsWith(".") && !isBiosFile(it.name) } ?: return emptyList()
-        val hasCue = files.any { it.extension.equals("cue", true) }
-        val hasM3u = files.any { it.extension.equals("m3u", true) }
+        // PS1: stopy, na ktoré odkazuje .cue, a disky z .m3u nezobrazuj samostatne
+        val inCue = if (system.id == "psx") files.filter { it.extension.equals("cue", true) }.flatMap(::cueRefs).map { it.lowercase() }.toSet() else emptySet()
+        val inM3u =
+            if (system.id == "psx") {
+                files.filter { it.extension.equals("m3u", true) }
+                    .flatMap { m3u -> runCatching { m3u.readLines() }.getOrDefault(emptyList()) }
+                    .map { File(it.trim().replace('\\', '/')).name.lowercase() }.toSet()
+            } else {
+                emptySet()
+            }
         return files.filter { f ->
             val ext = f.extension.lowercase()
             when {
                 ext !in system.extensions -> false
                 // Pri PlayStation zobraz len .m3u / .cue, nie jednotlivé stopy .bin
-                system.id == "psx" && ext in setOf("bin", "img") -> !hasCue && !hasM3u
-                system.id == "psx" && ext == "cue" -> !hasM3u
+                system.id == "psx" && ext in setOf("bin", "img") -> f.name.lowercase() !in inCue && f.name.lowercase() !in inM3u
+                system.id == "psx" -> f.name.lowercase() !in inM3u
                 else -> true
             }
         }.mapNotNull { f -> if (system.id == "arcade") arcadeGame(f, system, managed) else Game(f, system, managed) }
+    }
+
+    // ------------------------------------------------------------------ PS1 disky
+
+    /** Mega Drive hry majú najviac pár MB, PS1 stopa desiatky až stovky MB. */
+    private const val MAX_MEGADRIVE_SIZE = 16L * 1024 * 1024
+
+    private val cueFileRef = Regex("(?im)^\\s*FILE\\s+\"([^\"]+)\"")
+
+    private fun cueRefs(cue: File): List<String> =
+        runCatching { cueFileRef.findAll(cue.readText()).map { File(it.groupValues[1].replace('\\', '/')).name }.toList() }
+            .getOrDefault(emptyList())
+
+    private fun psxCues(base: File): List<File> =
+        File(base, "psx").walkTopDown().maxDepth(2).filter { it.isFile && it.extension.equals("cue", true) }.toList()
+
+    private fun isPsxBin(base: File, name: String, size: Long): Boolean =
+        size > MAX_MEGADRIVE_SIZE || psxCues(base).any { cue -> cueRefs(cue).any { it.equals(name, true) } }
+
+    /**
+     * Staršie verzie zaradili .bin stopy PS1 hier k Mega Drive (.cue ostal v psx), takže hra
+     * sa nedala spustiť. Stopy, na ktoré .cue odkazuje, a priveľké .bin presunie späť k PS1.
+     */
+    private fun repairPsx(base: File) {
+        val md = File(base, "megadrive")
+        val mdFiles = md.listFiles()?.filter { it.isFile }.orEmpty()
+        if (mdFiles.isEmpty()) return
+        runCatching {
+            val moved = mutableSetOf<File>()
+            for (cue in psxCues(base)) {
+                for (ref in cueRefs(cue)) {
+                    if (cue.parentFile!!.listFiles()?.any { it.name.equals(ref, true) } == true) continue
+                    val src = mdFiles.firstOrNull { it.name.equals(ref, true) && it !in moved } ?: continue
+                    if (src.renameTo(File(cue.parentFile, src.name))) {
+                        moved += src
+                        Log.i("Library", "PS1 stopa ${src.name} presunutá k ${cue.name}")
+                    }
+                }
+            }
+            val psx = File(base, "psx").apply { mkdirs() }
+            mdFiles.filter { it !in moved && it.extension.equals("bin", true) && it.length() > MAX_MEGADRIVE_SIZE }.forEach { src ->
+                val target = File(psx, src.name)
+                if (!target.exists() && src.renameTo(target)) Log.i("Library", "PS1 disk ${src.name} presunutý z Mega Drive")
+            }
+        }.onFailure { Log.e("Library", "Oprava PS1 hier zlyhala", it) }
     }
 
     // ------------------------------------------------------------------ arkádové sety
@@ -311,7 +366,11 @@ object Library {
                     romsDir
                 }
             // Konzola podľa voľby, alebo podľa názvu priečinka (napr. "genesis" z USB skriptu)
-            val hinted = Systems.byId(systemHint) ?: Systems.byFolder(systemHint)
+            // Skript posiela celú cestu priečinkov (napr. "Roms/psx/Harry Potter") – berieme
+            // najhlbší priečinok, ktorý je názvom konzoly
+            val hinted =
+                Systems.byId(systemHint)
+                    ?: systemHint.split('/', '\\').asReversed().firstNotNullOfOrNull { Systems.byFolder(it) }
             var zipOnUsb = false
             if (ext == "zip" && hinted?.id != "arcade") {
                 if (toUsb) {
@@ -330,7 +389,8 @@ object Library {
             val system =
                 hinted ?: (if (zipOnUsb) zipEntry(temp, null)?.first else null) ?: Systems.byUniqueExtension(ext) ?: when (ext) {
                     "zip" -> Systems.byId("arcade")
-                    "bin" -> Systems.byId("megadrive")
+                    // .bin môže byť Mega Drive aj stopa PS1 disku: patrí k .cue, alebo je na Mega Drive priveľký
+                    "bin" -> if (isPsxBin(base, name, temp.length())) Systems.byId("psx") else Systems.byId("megadrive")
                     "iso", "img" -> Systems.byId("psx")
                     else -> null
                 } ?: return ImportResult(false, "Neznámy formát .$ext – vyber konzolu ručne")
