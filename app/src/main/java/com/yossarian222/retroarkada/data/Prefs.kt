@@ -32,6 +32,11 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("ps1_compat", false)
         set(value) = sp.edit().putBoolean("ps1_compat", value).apply()
 
+    /** Vibrácie ovládača. Každá zmena je príkaz cez Bluetooth – na RPi môže ovládač vypadávať. */
+    var rumble: Boolean
+        get() = sp.getBoolean("rumble", true)
+        set(value) = sp.edit().putBoolean("rumble", value).apply()
+
     var favorites: Set<String>
         get() = sp.getStringSet("favorites", emptySet())!!.toSet()
         set(value) = sp.edit().putStringSet("favorites", value).apply()

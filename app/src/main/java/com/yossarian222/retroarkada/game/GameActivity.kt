@@ -418,16 +418,27 @@ class GameActivity : ComponentActivity() {
 
     private fun deadzone(v: Float) = if (abs(v) < 0.15f) 0f else v
 
+    /** Posledná poslaná sila vibrácie a čas pre každý port – aby sme nezahlcovali Bluetooth. */
+    private val lastRumble = HashMap<Int, Pair<Int, Long>>()
+
     private fun rumble(port: Int, strength: Float) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || !Library.prefs.rumble) return
         val deviceId = ports.entries.firstOrNull { it.value == port }?.key ?: return
+        // Jadrá menia silu takmer každý snímok; každá zmena je príkaz cez Bluetooth a príliš
+        // veľa príkazov dokáže spojenie s ovládačom na RPi zahltiť (ovládač preblikáva/vypadáva).
+        val amp = if (strength <= 0f) 0 else (strength * 255).toInt().coerceIn(1, 255) / 32 * 32 + 31
+        val now = System.currentTimeMillis()
+        val last = lastRumble[port]
+        // Rovnakú silu pošli znova až tesne pred koncom 1 s vibrácie, zmenu najviac raz za 150 ms
+        if (last != null && last.first == amp && (amp == 0 || now - last.second < 800)) return
+        if (last != null && last.first != amp && amp != 0 && now - last.second < 150) return
+        lastRumble[port] = amp to now
         runCatching {
             val vibrator = InputDevice.getDevice(deviceId)?.vibratorManager?.defaultVibrator ?: return
-            if (strength <= 0f) {
+            if (amp == 0) {
                 vibrator.cancel()
             } else {
-                val amp = (strength * 255).toInt().coerceIn(1, 255)
-                vibrator.vibrate(VibrationEffect.createOneShot(5000, amp))
+                vibrator.vibrate(VibrationEffect.createOneShot(1000, amp.coerceAtMost(255)))
             }
         }
     }

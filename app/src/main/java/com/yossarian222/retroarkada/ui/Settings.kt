@@ -74,6 +74,15 @@ fun SettingsScreen(onAdd: () -> Unit) {
                     ps1Compat = !ps1Compat
                     Library.prefs.ps1Compat = ps1Compat
                 }
+                var rumble by remember { mutableStateOf(Library.prefs.rumble) }
+                FocusButton(
+                    "Vibrácie ovládača",
+                    Modifier.width(400.dp),
+                    subtitle = if (rumble) "Zapnuté – vypni, ak ovládač vypadáva" else "Vypnuté",
+                ) {
+                    rumble = !rumble
+                    Library.prefs.rumble = rumble
+                }
                 var lowLatency by remember { mutableStateOf(Library.prefs.lowLatencyAudio) }
                 FocusButton(
                     "Zvuk",
