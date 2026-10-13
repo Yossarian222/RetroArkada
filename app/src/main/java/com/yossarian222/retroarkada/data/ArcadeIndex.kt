@@ -3,11 +3,10 @@ package com.yossarian222.retroarkada.data
 import android.content.Context
 import android.util.Log
 import java.io.File
-import java.util.zip.GZIPInputStream
 import java.util.zip.ZipFile
 
 /**
- * Databáza arkádových ROM setov FBNeo (assets/fbneo.idx.gz, generuje ju CI z oficiálneho DAT).
+ * Databáza arkádových ROM setov FBNeo (assets/fbneo.idx, generuje ju CI z oficiálneho DAT).
  *
  * FBNeo spozná hru iba podľa názvu zipu ("mslug.zip"), takže "Metal Slug (World).zip" hlási
  * "Romset unknown". Podľa CRC súborov vo vnútri zipu tu nájdeme správny názov setu.
@@ -43,13 +42,14 @@ object ArcadeIndex {
     private fun load(): Map<String, Entry> =
         runCatching {
             val map = HashMap<String, Entry>(10000)
-            GZIPInputStream(app.assets.open("fbneo.idx.gz")).bufferedReader().useLines { lines ->
+            app.assets.open("fbneo.idx").bufferedReader().useLines { lines ->
                 lines.forEach { line ->
                     val p = line.split('\t')
                     if (p.size < 6) return@forEach
                     map[p[0]] = Entry(p[0], p[1].ifEmpty { null }, p[2] == "1", p[3], crcs(p[4]), crcs(p[5]))
                 }
             }
+            Log.i("ArcadeIndex", "Databáza arkádových hier: ${map.size} setov")
             map
         }.getOrElse {
             Log.e("ArcadeIndex", "Databázu arkádových hier sa nepodarilo načítať", it)

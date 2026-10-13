@@ -6,4 +6,4 @@ local.properties
 # Jadrá sa sťahujú v CI skriptom scripts/download-cores.sh
 app/src/main/jniLibs/
 # Databáza arkádových hier sa generuje v CI skriptom scripts/build-arcade-index.py
-app/src/main/assets/fbneo.idx.gz
+app/src/main/assets/fbneo.idx

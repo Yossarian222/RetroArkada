@@ -39,13 +39,16 @@ jobs:
         run: |
           curl -fsSL --retry 4 --retry-delay 3 -o fbneo.dat \
             "https://raw.githubusercontent.com/libretro/FBNeo/master/dats/FinalBurn%20Neo%20(ClrMame%20Pro%20XML%2C%20Arcade%20only).dat"
-          python3 scripts/build-arcade-index.py fbneo.dat app/src/main/assets/fbneo.idx.gz
+          python3 scripts/build-arcade-index.py fbneo.dat app/src/main/assets/fbneo.idx
 
       - name: Zostaviť APK
         run: ./gradlew --no-daemon assembleRelease
 
       - name: Premenovať APK
         run: cp app/build/outputs/apk/release/app-release.apk RetroArkada.apk && ls -la RetroArkada.apk
+
+      - name: Skontrolovať databázu arkádových hier v APK
+        run: unzip -l RetroArkada.apk | grep -q ' assets/fbneo.idx$' || { echo "V APK chýba assets/fbneo.idx" >&2; exit 1; }
 
       - uses: actions/upload-artifact@v4
         with:
