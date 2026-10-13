@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
+import android.util.Log
 import android.hardware.input.InputManager
 import android.view.InputDevice
 import android.view.KeyEvent
@@ -39,6 +40,9 @@ class GameActivity : ComponentActivity() {
     private lateinit var retroView: GLRetroView
 
     private var autosaveRestored = false
+
+    /** Hra naozaj beží (vykreslila sa aspoň 1 snímka). Kým nie, nepýtame sa jadra na disky – spadlo by. */
+    @Volatile private var running = false
     private var pendingAction: String? = null
     private var fastForward = false
 
@@ -100,6 +104,15 @@ class GameActivity : ComponentActivity() {
     }
 
     private fun startEmulator(root: FrameLayout, loading: View?, core: String, rom: File) {
+        // PS1 .cue odkazuje na .bin stopy – ak niektorá chýba, povedz ktorá, namiesto všeobecnej chyby
+        val missing = Library.missingCueTracks(rom)
+        if (missing.isNotEmpty()) {
+            Log.e(TAG, "Hre ${rom.absolutePath} chýbajú súbory: $missing")
+            Toast.makeText(this, "Hre chýba súbor ${missing.first()} (má byť vedľa ${rom.name})", Toast.LENGTH_LONG).show()
+            finish()
+            return
+        }
+        Log.i(TAG, "Spúšťam ${rom.absolutePath} (${rom.length()} B) jadrom ${File(core).name}")
         val sram = Library.sramFile(game)
         val data =
             GLRetroViewData(this).apply {
@@ -123,6 +136,7 @@ class GameActivity : ComponentActivity() {
 
         lifecycleScope.launch {
             retroView.getGLRetroEvents().collect { event ->
+                if (event == GLRetroEvents.FrameRendered) running = true
                 if (event == GLRetroEvents.FrameRendered && !autosaveRestored) {
                     autosaveRestored = true
                     restoreAutosave()
@@ -138,6 +152,7 @@ class GameActivity : ComponentActivity() {
                         GLRetroView.ERROR_GL_NOT_COMPATIBLE -> "Grafika tohto zariadenia nie je podporovaná"
                         else -> "Chyba emulátora ($code)"
                     }
+                Log.e(TAG, "Chyba emulátora $code pri ${rom.absolutePath}")
                 Toast.makeText(this@GameActivity, msg, Toast.LENGTH_LONG).show()
                 finish()
             }
@@ -224,7 +239,7 @@ class GameActivity : ComponentActivity() {
                 .putExtra(MenuActivity.EXTRA_SYSTEM, game.system.fullName)
                 .putExtra(MenuActivity.EXTRA_HAS_SLOT, Library.stateFile(game, "slot1").exists())
                 .putExtra(MenuActivity.EXTRA_FAST, fastForward)
-                .putExtra(MenuActivity.EXTRA_DISKS, runCatching { retroView.getAvailableDisks() }.getOrDefault(0))
+                .putExtra(MenuActivity.EXTRA_DISKS, if (running) runCatching { retroView.getAvailableDisks() }.getOrDefault(0) else 0)
         menuLauncher.launch(intent)
     }
 
@@ -253,7 +268,7 @@ class GameActivity : ComponentActivity() {
                 toast("Obraz: ${f.label}")
             }
             MenuActivity.ACTION_DISK ->
-                thread {
+                if (running) thread {
                     val count = retroView.getAvailableDisks()
                     if (count > 1) {
                         val next = (retroView.getCurrentDisk() + 1) % count
@@ -449,6 +464,7 @@ class GameActivity : ComponentActivity() {
     }
 
     companion object {
+        private const val TAG = "GameActivity"
         private const val EXTRA_GAME = "game"
 
         fun start(context: Context, game: Game) {

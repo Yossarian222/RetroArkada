@@ -170,6 +170,13 @@ object Library {
         runCatching { cueFileRef.findAll(cue.readText()).map { File(it.groupValues[1].replace('\\', '/')).name }.toList() }
             .getOrDefault(emptyList())
 
+    /** Súbory, na ktoré .cue odkazuje, ale vedľa neho nie sú (hra by sa nespustila). */
+    fun missingCueTracks(cue: File): List<String> {
+        if (!cue.extension.equals("cue", true)) return emptyList()
+        val present = cue.parentFile?.list()?.map { it.lowercase() }?.toSet().orEmpty()
+        return cueRefs(cue).filter { it.lowercase() !in present }
+    }
+
     private fun psxCues(base: File): List<File> =
         File(base, "psx").walkTopDown().maxDepth(2).filter { it.isFile && it.extension.equals("cue", true) }.toList()
 
